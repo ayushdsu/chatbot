@@ -5,44 +5,28 @@ import requests
 app = Flask(__name__)
 CORS(app)
 
-API_URL = "https://api-inference.huggingface.co/models/bigscience/bloomz-560m"
-API_TOKEN = "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"  # Replace with your actual token
-
-headers = {
-    "Authorization": f"Bearer {API_TOKEN}"
-}
-
-def query(payload):
-    response = requests.post(API_URL, headers=headers, json=payload)
-    print("Status Code:", response.status_code)
-    print("Raw response:", response.text)
-    response.raise_for_status()
-    return response.json()
+OPENROUTER_API_KEY = "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"
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    data = request.get_json()
-    message = data.get("message", "")
-
-    payload = {
-        "inputs": message,
-        "options": {"wait_for_model": True}
-    }
-
     try:
-        result = query(payload)
-        print("Parsed result:", result)
-
-        if isinstance(result, list) and "generated_text" in result[0]:
-            return jsonify({"response": result[0]["generated_text"]})
-        else:
-            return jsonify({"response": "Model did not return expected output."})
-    except requests.exceptions.HTTPError as http_err:
-        print("HTTP error:", http_err)
-        return jsonify({"response": f"HTTP error: {http_err}"}), 500
+        user_message = request.json.get("message", "")
+        resp = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+                "Content-Type": "application/json"
+            },
+            json={
+                "model": "deepseek/deepseek-r1:free",
+                "messages": [{"role":"user","content": user_message}]
+            }
+        )
+        resp.raise_for_status()
+        bot_response = resp.json()["choices"][0]["message"]["content"]
+        return jsonify({"response": bot_response})
     except Exception as e:
-        print("Error:", e)
-        return jsonify({"response": f"Internal server error: {str(e)}"}), 500
+        return jsonify({"response": f"Error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
